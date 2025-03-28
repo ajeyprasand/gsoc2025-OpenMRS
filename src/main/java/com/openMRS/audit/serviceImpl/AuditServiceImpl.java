@@ -26,13 +26,31 @@ public class AuditServiceImpl {
     private EntityManager entityManager;
 
     public List<Object> getAudit(FilterDto filters){
-        AuditReader reader = AuditReaderFactory.get(entityManager);
-        AuditQuery query = reader.createQuery().forRevisionsOfEntity(Book.class, false, true);
-
         String user = filters.getUser();
         String revType = filters.getRevType();
         String starDateTime = filters.getStarDateTime();
         String endDateTime = filters.getEndDateTime();
+        String entity = filters.getEntity();
+        String fieldName = filters.getFieldName();
+        String fieldValue = filters.getFieldValue();
+
+        AuditReader reader = AuditReaderFactory.get(entityManager);
+        AuditQuery query = null;
+        
+        if(entity == null){
+            throw new IllegalArgumentException("Entity is mandatory");
+        }
+
+        try {
+            Class<?> entityClass  = Class.forName("com.openMRS.audit.entity." + entity);
+            query = reader.createQuery().forRevisionsOfEntity(entityClass, false, true);
+        } catch (ClassNotFoundException e) {
+            throw new IllegalArgumentException("Cannot find entity with name: " + entity);
+        }
+
+        if(fieldName != null && fieldValue != null){
+            query.add(AuditEntity.property(fieldName).eq(fieldValue));
+        }
 
         if(user != null){
             query.add(AuditEntity.revisionProperty("username").eq(user));
@@ -76,7 +94,7 @@ public class AuditServiceImpl {
         return responseList;
     }
 
-    private List<Object> processQueryResult(@SuppressWarnings("rawtypes") List queryResult){
+    private List<Object> processQueryResult(List<?> queryResult){
         List<Object> responseList = new ArrayList<>();
         for (Object object : queryResult) {
             Object[] obj = (Object[]) object;
