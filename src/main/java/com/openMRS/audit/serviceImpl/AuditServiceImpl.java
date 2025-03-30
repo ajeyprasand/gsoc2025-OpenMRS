@@ -3,6 +3,7 @@ package com.openMRS.audit.serviceImpl;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import org.hibernate.envers.AuditReader;
 import org.hibernate.envers.AuditReaderFactory;
@@ -25,38 +26,39 @@ public class AuditServiceImpl {
     @PersistenceContext
     private EntityManager entityManager;
 
-    public List<Object> getAudit(FilterDto filters){
+    public List<Object> getAudit(FilterDto filters) throws IllegalArgumentException{
         String user = filters.getUser();
         String revType = filters.getRevType();
         String starDateTime = filters.getStarDateTime();
         String endDateTime = filters.getEndDateTime();
-        String entity = filters.getEntity();
-        String fieldName = filters.getFieldName();
-        String fieldValue = filters.getFieldValue();
-
+        String entityName = filters.getEntity();
+        String fieldName = filters.getField();
+       
         AuditReader reader = AuditReaderFactory.get(entityManager);
         AuditQuery query = null;
         
-        if(entity == null){
-            throw new IllegalArgumentException("Entity is mandatory");
+        if(entityName == null){
+            throw new IllegalArgumentException("Entity Name is mandatory");
         }
 
-        try {
-            Class<?> entityClass  = Class.forName("com.openMRS.audit.entity." + entity);
-            query = reader.createQuery().forRevisionsOfEntity(entityClass, false, true);
-        } catch (ClassNotFoundException e) {
-            throw new IllegalArgumentException("Cannot find entity with name: " + entity);
+        Class<?> entityClass;
+        try{
+            entityClass = Class.forName(entityName);
+        }catch(ClassNotFoundException e){
+            throw new IllegalArgumentException("Entity Name not found");
         }
 
-        if(fieldName != null && fieldValue != null){
-            query.add(AuditEntity.property(fieldName).eq(fieldValue));
+        query = reader.createQuery().forRevisionsOfEntity(entityClass, false, true);
+
+        if(fieldName != null && !fieldName.isEmpty()){
+            query.add(AuditEntity.property(fieldName+"_MOD").eq(true));
         }
 
-        if(user != null){
+        if(user != null && !user.isEmpty()){
             query.add(AuditEntity.revisionProperty("username").eq(user));
         }
 
-        if(revType != null){
+        if(revType != null && !revType.isEmpty()){
             try {
                 RevisionType revisionType = RevisionType.valueOf(revType);
                 query.add(AuditEntity.revisionType().eq(revisionType));
@@ -65,19 +67,19 @@ public class AuditServiceImpl {
             }    
         }
 
-        if(starDateTime != null){
+        if(starDateTime != null && !starDateTime.isEmpty()){
             try{
                 LocalDateTime start = LocalDateTime.parse(starDateTime);
-                query.add(AuditEntity.revisionProperty("modifiedTime").ge(start));    
+                query.add(AuditEntity.revisionProperty("timestamp").ge(start));    
             }catch(Exception e) {
                 throw new IllegalArgumentException("StartDateTime must be in proper format");
             }    
         }
 
-        if(endDateTime != null){
+        if(endDateTime != null && !endDateTime.isEmpty()){
             try{
                 LocalDateTime end = LocalDateTime.parse(endDateTime);
-                query.add(AuditEntity.revisionProperty("modifiedTime").le(end));
+                query.add(AuditEntity.revisionProperty("timestamp").le(end));
             }catch(Exception e) {
                 throw new IllegalArgumentException("EndDateTime must be in proper format");
             }    
@@ -87,11 +89,23 @@ public class AuditServiceImpl {
         return responseList;
     }
 
-    public List<Object> getAuditByUser(String user){
-        AuditReader reader = AuditReaderFactory.get(entityManager);
-        AuditQuery query = reader.createQuery().forRevisionsOfEntity(Book.class, false, true);
-        List<Object> responseList = processQueryResult(query.getResultList());
-        return responseList;
+    public List<String> getEntitiesList(){
+        return entityManager.getMetamodel().getEntities().stream()
+                            .map(e -> e.getName())
+                            .filter(a -> !a.equals("CustomRevisionEntity") )
+                            .collect(Collectors.toList());
+    }
+
+    public List<String> getFieldsList(String entityName){
+        return entityManager.getMetamodel().getEntities().stream()
+                            .filter(e -> e.getName().equals(entityName)).findFirst()
+                            .map(e -> {
+                                    return e.getDeclaredAttributes().stream()
+                                    .map(a -> a.getName())
+                                    .filter(a -> !a.equals("id"))
+                                    .collect(Collectors.toList());
+                                })
+                            .get();
     }
 
     private List<Object> processQueryResult(List<?> queryResult){

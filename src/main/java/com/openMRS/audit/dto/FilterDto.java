@@ -1,16 +1,13 @@
 package com.openMRS.audit.dto;
 
-
-
-import jakarta.validation.constraints.NotNull;
+import lombok.AllArgsConstructor;
 import lombok.Data;
 
 @Data
+@AllArgsConstructor
 public class FilterDto {
-    @NotNull(message = "Entity is mandatory")
     private String entity;
-    private String fieldName;
-    private String fieldValue;
+    private String field;
     private String user;
     private String revType;
     private String starDateTime;
