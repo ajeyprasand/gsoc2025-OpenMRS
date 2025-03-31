@@ -9,10 +9,16 @@ import com.openMRS.audit.entity.Book;
 import com.openMRS.audit.repository.BookRepository;
 import com.openMRS.audit.security.AuditContext;
 
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
+
 @Service
 public class BookServiceImpl {
     @Autowired
     private BookRepository repository;
+
+    @PersistenceContext
+    private EntityManager entityManager;
 
     public BookDto saveBook(BookDto bookDto) {
         AuditContext.setUsername("Ajey");
@@ -37,4 +43,5 @@ public class BookServiceImpl {
         return "Book deleted";
     }
     
+
 }

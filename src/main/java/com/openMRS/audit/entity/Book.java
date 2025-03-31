@@ -13,7 +13,7 @@ import jakarta.persistence.Id;
 @Entity
 @NoArgsConstructor
 @Data
-@Audited(withModifiedFlag = true)
+@Audited
 public class Book {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

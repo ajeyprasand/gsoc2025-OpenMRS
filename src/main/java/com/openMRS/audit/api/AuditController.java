@@ -25,6 +25,14 @@ public class AuditController {
     @PersistenceContext
     private EntityManager entityManager;
 
+    @GetMapping("/migrate")
+    public ResponseEntity<String> migrateData(){
+        List<String> names = auditService.getEntitiesList();
+        auditService.migrateAuditData(names);
+        return ResponseEntity.ok().body("Migration Done");
+
+    }
+
     @GetMapping("/audit")
     public ResponseEntity<?> getAudit(
         @RequestParam String entity,

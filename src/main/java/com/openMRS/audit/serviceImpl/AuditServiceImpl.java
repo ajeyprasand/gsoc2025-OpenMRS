@@ -11,6 +11,7 @@ import org.hibernate.envers.RevisionType;
 import org.hibernate.envers.query.AuditEntity;
 import org.hibernate.envers.query.AuditQuery;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.openMRS.audit.dto.FilterDto;
 import com.openMRS.audit.dto.ResponseDto;
@@ -102,11 +103,43 @@ public class AuditServiceImpl {
                             .map(e -> {
                                     return e.getDeclaredAttributes().stream()
                                     .map(a -> a.getName())
-                                    .filter(a -> !a.equals("id"))
                                     .collect(Collectors.toList());
                                 })
                             .get();
     }
+
+    @Transactional
+	public void migrateAuditData(List<String> classNames) {
+		for (String className : classNames) {
+			String auditEntity = className + "_AUD";
+			
+			List<Object> resultList = entityManager.createNativeQuery("SELECT * FROM " + className).getResultList();
+			
+			List<Object> resultListAudit = entityManager.createNativeQuery("SELECT * FROM " + auditEntity).getResultList();
+			
+			if (!resultList.isEmpty() && resultListAudit.isEmpty()) {
+				
+                List<Object> nextValList = entityManager.createNativeQuery("SELECT next_val FROM custom_rev_info_seq").getResultList() ;
+                int nextVal = Integer.valueOf(nextValList.get(0).toString());
+                int revId = entityManager.createNativeQuery("SELECT MAX(id) FROM custom_rev_info ").getFirstResult() + nextVal ;
+				Long currentTimestamp = System.currentTimeMillis();
+				
+				String columns = String.join(",",getFieldsList(className));
+				String updatedColumns = columns + ", REV, REVTYPE";
+
+                entityManager.createNativeQuery("UPDATE custom_rev_info_seq SET next_val = :nextVal")
+                .setParameter("nextVal", nextVal+50).executeUpdate();
+
+                entityManager.createNativeQuery("INSERT INTO custom_rev_info (id, timestamp) VALUES (:revId, :timestamp)")
+                .setParameter("revId", revId).setParameter("timestamp", currentTimestamp).executeUpdate();
+
+                entityManager.createNativeQuery( "INSERT INTO " + auditEntity + " (" + updatedColumns + ") " + "SELECT " + columns
+                + ", :revId AS REV, 0 AS REVTYPE FROM " + className).setParameter("revId", revId).executeUpdate();
+				
+			}
+		}
+		
+	}
 
     private List<Object> processQueryResult(List<?> queryResult){
         List<Object> responseList = new ArrayList<>();
